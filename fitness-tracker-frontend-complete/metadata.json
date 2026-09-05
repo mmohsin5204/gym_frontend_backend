@@ -1,0 +1,6 @@
+{
+  "name": "FitTrack",
+  "description": "Dark-first fitness and nutrition tracking web app with analytics, workout logs, meal plans, reminders, and progress tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
