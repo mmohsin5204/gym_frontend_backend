@@ -1,8 +1,9 @@
 import React from 'react';
-import { Routes, Route, Navigate, Link } from 'react-router-dom';
+import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppLayout } from './layouts/AppLayout';
 
 // Pages
@@ -38,10 +39,13 @@ const NotFoundPage: React.FC = () => (
 );
 
 export function App() {
+  const location = useLocation();
+
   return (
     <ToastProvider>
       <AuthProvider>
-        <Routes>
+        <ErrorBoundary key={location.pathname}>
+          <Routes>
           {/* Public Authentication Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -67,7 +71,8 @@ export function App() {
           {/* Root Redirect & Fallback */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+          </Routes>
+        </ErrorBoundary>
       </AuthProvider>
     </ToastProvider>
   );

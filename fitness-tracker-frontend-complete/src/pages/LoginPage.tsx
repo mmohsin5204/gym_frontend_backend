@@ -9,7 +9,7 @@ import { Input } from '../components/ui/Input';
 import { AxiosError } from 'axios';
 
 export const LoginPage: React.FC = () => {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, loginDemo } = useAuth();
   const { error: toastError, success } = useToast();
   const navigate = useNavigate();
 
@@ -64,6 +64,19 @@ export const LoginPage: React.FC = () => {
       } else {
         toastError('Unable to sign in. Please verify your credentials or server connection.');
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    try {
+      setIsLoading(true);
+      await loginDemo();
+      success('Demo login successful!', 'Welcome');
+      navigate('/dashboard');
+    } catch (err) {
+      toastError('Unable to start demo session.');
     } finally {
       setIsLoading(false);
     }
@@ -254,6 +267,16 @@ export const LoginPage: React.FC = () => {
             <Link to="/register" className="font-semibold text-[#C6FF3A] hover:underline">
               Create account
             </Link>
+          </p>
+          <p className="text-center text-xs text-slate-400 mt-3">
+            Just exploring?{' '}
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              className="font-semibold text-[#C6FF3A] hover:underline"
+            >
+              Open demo login
+            </button>
           </p>
         </motion.div>
       </div>

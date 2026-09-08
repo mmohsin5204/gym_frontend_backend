@@ -59,6 +59,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 interface AuthContextType extends AuthState {
   login: (email: string, password?: string) => Promise<AuthResponse>;
   register: (name: string, email: string, password?: string, profilePicture?: string) => Promise<AuthResponse>;
+  loginDemo: () => Promise<AuthResponse>;
   logout: () => void;
   refreshProfile: () => Promise<User | null>;
   updateUserPreferences: (prefs: Partial<UserPreferences>) => Promise<void>;
@@ -73,6 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(DEMO_MODE_KEY);
     dispatch({ type: 'LOGOUT' });
   }, []);
 
@@ -106,8 +108,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       } catch (err) {
         console.warn('Session verification failed, falling back or clearing token:', err);
-        // If demo mode or token exists, try fallback
-        if (storedToken.startsWith('mock_jwt_token')) {
+        // Only restore session via mock data if the user explicitly opened demo mode
+        if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
           dispatch({
             type: 'AUTH_SUCCESS',
             payload: { user: INITIAL_USER, token: storedToken },
@@ -147,7 +149,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password?: string): Promise<AuthResponse> => {
     dispatch({ type: 'AUTH_START' });
     try {
+      localStorage.removeItem(DEMO_MODE_KEY); // real login attempt, demo off
       const res = await authApi.login({ email, password });
+      localStorage.setItem(TOKEN_KEY, res.token);
+      dispatch({
+        type: 'AUTH_SUCCESS',
+        payload: {
+          token: res.token,
+          user: {
+            _id: res._id,
+            name: res.name,
+            email: res.email,
+            profilePicture: res.profilePicture,
+            preferences: res.preferences || { unit: 'metric', theme: 'dark', notificationsEnabled: true },
+          },
+        },
+      });
+      return res;
+    } catch (err) {
+      dispatch({ type: 'AUTH_FAIL' });
+      throw err;
+    }
+  };
+
+  const loginDemo = async (): Promise<AuthResponse> => {
+    dispatch({ type: 'AUTH_START' });
+    try {
+      localStorage.setItem(DEMO_MODE_KEY, 'true');
+      const res = await authApi.login({ email: 'alex.rivera@example.com', password: 'demo123456' });
       localStorage.setItem(TOKEN_KEY, res.token);
       dispatch({
         type: 'AUTH_SUCCESS',
@@ -177,6 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ): Promise<AuthResponse> => {
     dispatch({ type: 'AUTH_START' });
     try {
+      localStorage.removeItem(DEMO_MODE_KEY); // real register attempt, demo off
       const res = await authApi.register({ name, email, password, profilePicture });
       localStorage.setItem(TOKEN_KEY, res.token);
       dispatch({
@@ -234,6 +264,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...state,
         login,
         register,
+        loginDemo,
         logout,
         refreshProfile,
         updateUserPreferences,

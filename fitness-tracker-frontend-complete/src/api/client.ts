@@ -18,6 +18,8 @@ export const TOKEN_KEY = 'fittrack_token';
 export const API_URL_KEY = 'fittrack_api_url';
 export const DEMO_MODE_KEY = 'fittrack_demo_mode';
 
+const isDemo = () => localStorage.getItem(DEMO_MODE_KEY) === 'true';
+
 const getBaseUrl = () => {
   return localStorage.getItem(API_URL_KEY) || 'http://localhost:5000/api';
 };
@@ -48,7 +50,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isDemo()) {
       localStorage.removeItem(TOKEN_KEY);
       window.dispatchEvent(new CustomEvent('fittrack_auth_expired'));
     }
@@ -56,24 +58,17 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Helper to check if we should use mock fallback (e.g. backend offline or in demo mode)
-const isDemoOrOffline = (error?: unknown) => {
-  const forceDemo = localStorage.getItem(DEMO_MODE_KEY) === 'true';
-  if (forceDemo) return true;
-  if (!error) return false;
-  const axiosErr = error as AxiosError;
-  return (
-    axiosErr.code === 'ERR_NETWORK' ||
-    axiosErr.code === 'ECONNABORTED' ||
-    axiosErr.message?.includes('Network Error') ||
-    axiosErr.code === 'ERR_CONNECTION_REFUSED' ||
-    !axiosErr.response
-  );
+// Mock fallback is used ONLY when the user explicitly opened demo login.
+// A real login/register/API failure (e.g. backend offline) must throw a
+// real error, not silently switch to demo data.
+const isDemoOrOffline = (_error?: unknown) => {
+  return isDemo();
 };
 
 // ==================== AUTH API ====================
 export const authApi = {
   login: async (credentials: { email: string; password?: string }): Promise<AuthResponse> => {
+    if (isDemo()) return mockApi.login(credentials.email, credentials.password);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.login(credentials.email, credentials.password);
@@ -89,6 +84,7 @@ export const authApi = {
   },
 
   register: async (data: { name: string; email: string; password?: string; profilePicture?: string }): Promise<AuthResponse> => {
+    if (isDemo()) return mockApi.register(data.name, data.email, data.profilePicture);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.register(data.name, data.email, data.profilePicture);
@@ -104,6 +100,7 @@ export const authApi = {
   },
 
   getProfile: async (): Promise<User> => {
+    if (isDemo()) return mockApi.getProfile();
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getProfile();
@@ -119,6 +116,7 @@ export const authApi = {
   },
 
   updateProfile: async (data: Partial<User> & { password?: string }): Promise<User> => {
+    if (isDemo()) return mockApi.updateProfile(data);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.updateProfile(data);
@@ -137,6 +135,7 @@ export const authApi = {
 // ==================== SETTINGS API ====================
 export const settingsApi = {
   getSettings: async (): Promise<User['preferences']> => {
+    if (isDemo()) return mockApi.getSettings();
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getSettings();
@@ -152,6 +151,7 @@ export const settingsApi = {
   },
 
   updateSettings: async (prefs: Partial<User['preferences']>): Promise<User['preferences']> => {
+    if (isDemo()) return mockApi.updateSettings(prefs);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.updateSettings(prefs);
@@ -170,6 +170,7 @@ export const settingsApi = {
 // ==================== DASHBOARD API ====================
 export const dashboardApi = {
   getDashboard: async (): Promise<DashboardData> => {
+    if (isDemo()) return mockApi.getDashboard();
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getDashboard();
@@ -185,6 +186,7 @@ export const dashboardApi = {
   },
 
   getWorkoutAnalytics: async (): Promise<WorkoutAnalytics> => {
+    if (isDemo()) return mockApi.getWorkoutAnalytics();
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getWorkoutAnalytics();
@@ -200,6 +202,7 @@ export const dashboardApi = {
   },
 
   getNutritionAnalytics: async (): Promise<NutritionAnalytics> => {
+    if (isDemo()) return mockApi.getNutritionAnalytics();
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getNutritionAnalytics();
@@ -218,6 +221,7 @@ export const dashboardApi = {
 // ==================== WORKOUTS API ====================
 export const workoutsApi = {
   getWorkouts: async (category?: string, search?: string): Promise<Workout[]> => {
+    if (isDemo()) return mockApi.getWorkouts(category, search);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getWorkouts(category, search);
@@ -236,6 +240,11 @@ export const workoutsApi = {
   },
 
   getWorkoutById: async (id: string): Promise<Workout> => {
+    if (isDemo()) {
+      const item = mockApi.getWorkoutById(id);
+      if (!item) throw new Error('Workout not found');
+      return item;
+    }
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         const item = mockApi.getWorkoutById(id);
@@ -255,6 +264,7 @@ export const workoutsApi = {
   },
 
   createWorkout: async (data: Omit<Workout, '_id' | 'createdAt'>): Promise<Workout> => {
+    if (isDemo()) return mockApi.createWorkout(data);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.createWorkout(data);
@@ -270,6 +280,11 @@ export const workoutsApi = {
   },
 
   updateWorkout: async (id: string, data: Partial<Workout>): Promise<Workout> => {
+    if (isDemo()) {
+      const updated = mockApi.updateWorkout(id, data);
+      if (!updated) throw new Error('Workout not found');
+      return updated;
+    }
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         const updated = mockApi.updateWorkout(id, data);
@@ -289,6 +304,7 @@ export const workoutsApi = {
   },
 
   deleteWorkout: async (id: string): Promise<{ message: string }> => {
+    if (isDemo()) return mockApi.deleteWorkout(id);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.deleteWorkout(id);
@@ -307,6 +323,7 @@ export const workoutsApi = {
 // ==================== NUTRITION API ====================
 export const nutritionApi = {
   getNutrition: async (mealType?: string, date?: string): Promise<NutritionLog[]> => {
+    if (isDemo()) return mockApi.getNutrition(mealType, date);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getNutrition(mealType, date);
@@ -325,6 +342,11 @@ export const nutritionApi = {
   },
 
   getNutritionLogById: async (id: string): Promise<NutritionLog> => {
+    if (isDemo()) {
+      const item = mockApi.getNutrition().find(n => n._id === id);
+      if (!item) throw new Error('Nutrition log not found');
+      return item;
+    }
     try {
       const res = await apiClient.get<NutritionLog>(`/nutrition/${id}`);
       return res.data;
@@ -339,6 +361,7 @@ export const nutritionApi = {
   },
 
   createNutritionLog: async (data: Omit<NutritionLog, '_id' | 'createdAt'>): Promise<NutritionLog> => {
+    if (isDemo()) return mockApi.createNutrition(data);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.createNutrition(data);
@@ -354,6 +377,11 @@ export const nutritionApi = {
   },
 
   updateNutritionLog: async (id: string, data: Partial<NutritionLog>): Promise<NutritionLog> => {
+    if (isDemo()) {
+      const updated = mockApi.updateNutrition(id, data);
+      if (!updated) throw new Error('Nutrition log not found');
+      return updated;
+    }
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         const updated = mockApi.updateNutrition(id, data);
@@ -373,6 +401,7 @@ export const nutritionApi = {
   },
 
   deleteNutritionLog: async (id: string): Promise<{ message: string }> => {
+    if (isDemo()) return mockApi.deleteNutrition(id);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.deleteNutrition(id);
@@ -391,6 +420,7 @@ export const nutritionApi = {
 // ==================== PROGRESS API ====================
 export const progressApi = {
   getProgress: async (): Promise<ProgressEntry[]> => {
+    if (isDemo()) return mockApi.getProgress();
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getProgress();
@@ -406,6 +436,11 @@ export const progressApi = {
   },
 
   getProgressById: async (id: string): Promise<ProgressEntry> => {
+    if (isDemo()) {
+      const item = mockApi.getProgress().find(p => p._id === id);
+      if (!item) throw new Error('Progress entry not found');
+      return item;
+    }
     try {
       const res = await apiClient.get<ProgressEntry>(`/progress/${id}`);
       return res.data;
@@ -420,6 +455,7 @@ export const progressApi = {
   },
 
   createProgressEntry: async (data: Omit<ProgressEntry, '_id' | 'createdAt'>): Promise<ProgressEntry> => {
+    if (isDemo()) return mockApi.createProgress(data);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.createProgress(data);
@@ -435,6 +471,11 @@ export const progressApi = {
   },
 
   updateProgressEntry: async (id: string, data: Partial<ProgressEntry>): Promise<ProgressEntry> => {
+    if (isDemo()) {
+      const updated = mockApi.updateProgress(id, data);
+      if (!updated) throw new Error('Progress entry not found');
+      return updated;
+    }
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         const updated = mockApi.updateProgress(id, data);
@@ -454,6 +495,7 @@ export const progressApi = {
   },
 
   deleteProgressEntry: async (id: string): Promise<{ message: string }> => {
+    if (isDemo()) return mockApi.deleteProgress(id);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.deleteProgress(id);
@@ -472,6 +514,7 @@ export const progressApi = {
 // ==================== NOTIFICATIONS API ====================
 export const notificationsApi = {
   getNotifications: async (isRead?: boolean): Promise<{ notifications: AppNotification[]; unreadCount: number }> => {
+    if (isDemo()) return mockApi.getNotifications(isRead);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getNotifications(isRead);
@@ -488,6 +531,11 @@ export const notificationsApi = {
   },
 
   markAsRead: async (id: string): Promise<AppNotification> => {
+    if (isDemo()) {
+      const updated = mockApi.markNotificationRead(id);
+      if (!updated) throw new Error('Notification not found');
+      return updated;
+    }
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         const updated = mockApi.markNotificationRead(id);
@@ -507,6 +555,7 @@ export const notificationsApi = {
   },
 
   markAllAsRead: async (): Promise<{ message: string }> => {
+    if (isDemo()) return mockApi.markAllNotificationsRead();
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.markAllNotificationsRead();
@@ -522,6 +571,7 @@ export const notificationsApi = {
   },
 
   deleteNotification: async (id: string): Promise<{ message: string }> => {
+    if (isDemo()) return mockApi.deleteNotification(id);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.deleteNotification(id);
@@ -540,6 +590,7 @@ export const notificationsApi = {
 // ==================== REMINDERS API ====================
 export const remindersApi = {
   getReminders: async (type?: string, isActive?: boolean): Promise<Reminder[]> => {
+    if (isDemo()) return mockApi.getReminders(type, isActive);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getReminders(type, isActive);
@@ -558,6 +609,7 @@ export const remindersApi = {
   },
 
   getDueReminders: async (): Promise<Reminder[]> => {
+    if (isDemo()) return mockApi.getDueReminders();
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getDueReminders();
@@ -573,6 +625,7 @@ export const remindersApi = {
   },
 
   createReminder: async (data: Omit<Reminder, '_id' | 'createdAt' | 'isActive'>): Promise<Reminder> => {
+    if (isDemo()) return mockApi.createReminder(data);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.createReminder(data);
@@ -588,6 +641,11 @@ export const remindersApi = {
   },
 
   updateReminder: async (id: string, data: Partial<Reminder>): Promise<Reminder> => {
+    if (isDemo()) {
+      const updated = mockApi.updateReminder(id, data);
+      if (!updated) throw new Error('Reminder not found');
+      return updated;
+    }
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         const updated = mockApi.updateReminder(id, data);
@@ -607,6 +665,7 @@ export const remindersApi = {
   },
 
   deleteReminder: async (id: string): Promise<{ message: string }> => {
+    if (isDemo()) return mockApi.deleteReminder(id);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.deleteReminder(id);
@@ -625,6 +684,7 @@ export const remindersApi = {
 // ==================== FEEDBACK API ====================
 export const feedbackApi = {
   getFeedback: async (): Promise<Feedback[]> => {
+    if (isDemo()) return mockApi.getFeedback();
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.getFeedback();
@@ -640,6 +700,7 @@ export const feedbackApi = {
   },
 
   createFeedback: async (data: { type?: Feedback['type']; subject: string; message: string }): Promise<Feedback> => {
+    if (isDemo()) return mockApi.createFeedback(data);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.createFeedback(data);
@@ -658,6 +719,7 @@ export const feedbackApi = {
 // ==================== EXPORT API ====================
 export const exportApi = {
   exportData: async (type: 'workouts' | 'nutrition' | 'progress', format: 'csv' | 'pdf'): Promise<Blob> => {
+    if (isDemo()) return mockApi.generateExportBlob(type, format);
     try {
       if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
         return mockApi.generateExportBlob(type, format);
