@@ -65,6 +65,7 @@ export const RegisterPage: React.FC = () => {
       navigate('/dashboard');
     } catch (err: unknown) {
       const axiosErr = err as AxiosError<{ message?: string; errors?: { field: string; message: string }[] }>;
+
       if (axiosErr.response?.data?.errors) {
         const mapped: Record<string, string> = {};
         axiosErr.response.data.errors.forEach((e) => {
@@ -72,8 +73,10 @@ export const RegisterPage: React.FC = () => {
         });
         setFieldErrors(mapped);
         toastError(axiosErr.response.data.message || 'Validation failed. Please check the inputs.');
+      } else if (!axiosErr.response) {
+        toastError('Cannot connect to the server. Please make sure the server is running and try again.');
       } else {
-        toastError('Registration could not be completed. Please try again.');
+        toastError(axiosErr.response.data?.message || 'Registration could not be completed. Please try again.');
       }
     } finally {
       setIsLoading(false);
